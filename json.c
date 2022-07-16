@@ -1,0 +1,1 @@
+int parse_json(void) { return 2; }
