@@ -37,6 +37,15 @@ void test_basic_named(void) {
   json_destroy(j);
 }
 
+void test_hash(void) {
+  json *j = parse_or_fail("{\"field\":1}");
+
+  const json_item *ent = json_get_item(j, "feild");
+  CU_ASSERT_EQUAL(ent, NULL);
+
+  json_destroy(j);
+}
+
 int main(void) {
   CU_pSuite suite;
   CU_initialize_registry();
@@ -44,6 +53,7 @@ int main(void) {
   suite = CU_add_suite("JSON test", NULL, NULL);
   CU_add_test(suite, "basic", test_basic);
   CU_add_test(suite, "basic_named", test_basic_named);
+  CU_add_test(suite, "hash", test_hash);
 
   CU_basic_run_tests();
   CU_cleanup_registry();
