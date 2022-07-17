@@ -6,6 +6,7 @@
 #include <string.h>
 
 #define eputs(msg) fprintf(stderr, "%s\n", msg)
+#define eputch(ch) fprintf(stderr, "%c\n", ch)
 #define UNIMPLEMENTED() eputs("UNIMPLEMENTED")
 #define expect(expected, found)                                                \
   fprintf(stderr, "[L%d] Expected %s but found %c (%d)\n", __LINE__, expected, \
@@ -22,6 +23,8 @@ static int json_object_entry_name_hash(const char *target);
 static const char *parse_object(struct json_object *obj, const char *json_str);
 static const char *parse_item(struct json_object *obj, const char *json_str);
 static const char *parse_integer(const char *json_str, int *res);
+static const char *read_token(const char *json_str, const char expects);
+static const char *feed_ws(const char *json_str);
 static int json_object_insert_item(struct json_object *obj, char *key,
                                    void *data, enum json_item_type type);
 static int json_object_grow(struct json_object *obj);
@@ -110,33 +113,27 @@ static void json_object_destroy(struct json_object *target) {
 
 static const char *parse_object(struct json_object *obj, const char *json_str) {
   const char *next = json_str;
-  if (*next != '{') {
-    expect("{", *next);
+  if (!(next = read_token(next, '{'))) {
     return NULL;
   }
-  next++;
 
   next = parse_item(obj, next);
   if (!next) {
     return NULL;
   }
 
-  if (*next != '}') {
-    expect("}", *next);
+  if (!(next = read_token(next, '}'))) {
     return NULL;
   }
-  next++;
 
   return next;
 }
 
 static const char *parse_item(struct json_object *obj, const char *json_str) {
   const char *next = json_str;
-  if (*next != '"') {
-    expect("\"", *next);
+  if (!(next = read_token(next, '"'))) {
     return NULL;
   }
-  next++;
 
   int key_len = 0;
   const char *key_start = next;
@@ -150,16 +147,11 @@ static const char *parse_item(struct json_object *obj, const char *json_str) {
   }
   next++;
 
-  if (*next != ':') {
-    expect(":", *next);
+  if (!(next = read_token(next, ':'))) {
     return NULL;
   }
-  next++;
 
-  if (!isdigit(*next)) {
-    expect("DIGIT", *next);
-    return NULL;
-  }
+  next = feed_ws(next);
   int *data = malloc(sizeof(int));
   next = parse_integer(next, data);
 
@@ -177,10 +169,34 @@ static const char *parse_item(struct json_object *obj, const char *json_str) {
 
 static const char *parse_integer(const char *json_str, int *res) {
   const char *next = json_str;
+  if (!isdigit(*next)) {
+    expect("DIGIT", *next);
+    return NULL;
+  }
   *res = 0;
   while (isdigit(*next)) {
     *res *= 10;
     *res += *next - '0';
+    next++;
+  }
+  return next;
+}
+
+static const char *read_token(const char *json_str, const char expects) {
+  const char *next = json_str;
+  next = feed_ws(next);
+  if (*next != expects) {
+    char b[2] = {expects, '\0'};
+    expect(b, *next);
+    return NULL;
+  }
+  next++;
+  return next;
+}
+
+static const char *feed_ws(const char *json_str) {
+  const char *next = json_str;
+  while (*next == ' ' || *next == '\t' || *next == '\n' || *next == '\r') {
     next++;
   }
   return next;

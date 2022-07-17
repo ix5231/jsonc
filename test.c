@@ -60,6 +60,20 @@ void test_int(void) {
   json_destroy(j);
 }
 
+void test_basic_space(void) {
+  json *j = parse_or_fail(" { \"field\":\n\r\t1 }");
+
+  const json_item *ent = json_get_item(j, "field");
+  if (!ent) {
+    json_destroy(j);
+    CU_FAIL_FATAL("Entry field was expected to be found.");
+  }
+  CU_ASSERT_EQUAL(ent->type, JSON_TYPE_INTEGER);
+  CU_ASSERT_EQUAL(*(int *)ent->data, 1);
+
+  json_destroy(j);
+}
+
 int main(void) {
   CU_pSuite suite;
   CU_initialize_registry();
@@ -67,6 +81,7 @@ int main(void) {
   suite = CU_add_suite("JSON test", NULL, NULL);
   CU_add_test(suite, "basic", test_basic);
   CU_add_test(suite, "basic_named", test_basic_named);
+  CU_add_test(suite, "basic_space", test_basic_space);
   CU_add_test(suite, "hash", test_hash);
   CU_add_test(suite, "int", test_int);
 
