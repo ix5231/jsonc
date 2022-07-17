@@ -117,16 +117,26 @@ static const char *parse_object(struct json_object *obj, const char *json_str) {
     return NULL;
   }
 
-  next = parse_item(obj, next);
-  if (!next) {
-    return NULL;
+  while (1) {
+    next = feed_ws(next);
+    switch (*next) {
+      case ',':
+        next++;
+        // dont break;
+      case '"':
+        next = parse_item(obj, next);
+        if (!next) {
+          return NULL;
+        }
+        break;
+      case '}':
+        next = feed_ws(next);
+        return next;
+      default:
+        expect("} or ,", *next);
+        return NULL;
+    }
   }
-
-  if (!(next = read_token(next, '}'))) {
-    return NULL;
-  }
-
-  return next;
 }
 
 static const char *parse_item(struct json_object *obj, const char *json_str) {
