@@ -19,7 +19,7 @@ struct json_object {
 };
 
 struct json {
-  struct json_object root_obj;
+  struct json_object *root_obj;
 };
 typedef struct json json;
 

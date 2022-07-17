@@ -9,7 +9,7 @@ test:
 	./test.out
 
 debug:
-	$(CC) $(CFLAGS) $(SRC) $(TESTSRC) $(LIBS) -g -o test.out
+	$(CC) $(CFLAGS) $(SRC) $(TESTSRC) $(LIBS) -g -fsanitize=address -o test.out
 
 clean:
 	rm test.out
