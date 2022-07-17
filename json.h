@@ -1,8 +1,6 @@
 #ifndef JSON_H
 #define JSON_H
 
-#define JSON_OBJECT_LEN 23
-
 enum json_item_type {
   JSON_ITEM_UNINITIALIZED,
   JSON_TYPE_INTEGER,
@@ -10,12 +8,14 @@ enum json_item_type {
 
 struct json_item {
   enum json_item_type type;
+  char *key;
   void *data;
 };
 typedef struct json_item json_item;
 
 struct json_object {
-  struct json_item items[JSON_OBJECT_LEN];
+  int size;
+  struct json_item *items;
 };
 
 struct json {
@@ -25,6 +25,6 @@ typedef struct json json;
 
 void json_destroy(json *target);
 json *json_parse_from(const char *json_str);
-const json_item *json_get_item(const json *target, const char *entry);
+const json_item *json_get_item(const json *target, const char *key);
 
 #endif
