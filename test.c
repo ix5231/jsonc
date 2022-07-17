@@ -46,6 +46,20 @@ void test_hash(void) {
   json_destroy(j);
 }
 
+void test_int(void) {
+  json *j = parse_or_fail("{\"field\":123}");
+
+  const json_item *ent = json_get_item(j, "field");
+  if (!ent) {
+    json_destroy(j);
+    CU_FAIL_FATAL("Entry field was expected to be found.");
+  }
+  CU_ASSERT_EQUAL(ent->type, JSON_TYPE_INTEGER);
+  CU_ASSERT_EQUAL(*(int *)ent->data, 123);
+
+  json_destroy(j);
+}
+
 int main(void) {
   CU_pSuite suite;
   CU_initialize_registry();
@@ -54,6 +68,7 @@ int main(void) {
   CU_add_test(suite, "basic", test_basic);
   CU_add_test(suite, "basic_named", test_basic_named);
   CU_add_test(suite, "hash", test_hash);
+  CU_add_test(suite, "int", test_int);
 
   CU_basic_run_tests();
   CU_cleanup_registry();

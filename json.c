@@ -1,5 +1,6 @@
 #include "json.h"
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,7 +8,7 @@
 #define eputs(msg) fprintf(stderr, "%s\n", msg)
 #define UNIMPLEMENTED() eputs("UNIMPLEMENTED")
 #define expect(expected, found)                                                \
-  fprintf(stderr, "[L%d] Expected %c but found %c (%d)\n", __LINE__, expected, \
+  fprintf(stderr, "[L%d] Expected %s but found %c (%d)\n", __LINE__, expected, \
           found, found)
 
 #define JSON_OBJECT_INITIAL_LEN 2
@@ -20,6 +21,7 @@ static void json_object_destroy(struct json_object *target);
 static int json_object_entry_name_hash(const char *target);
 static const char *parse_object(struct json_object *obj, const char *json_str);
 static const char *parse_item(struct json_object *obj, const char *json_str);
+static const char *parse_integer(const char *json_str, int *res);
 static int json_object_insert_item(struct json_object *obj, char *key,
                                    void *data, enum json_item_type type);
 static int json_object_grow(struct json_object *obj);
@@ -96,7 +98,7 @@ void json_destroy(json *target) {
 }
 
 static void json_object_destroy(struct json_object *target) {
-  for (int i = 0; i < JSON_OBJECT_INITIAL_LEN; i++) {
+  for (int i = 0; i < target->size; i++) {
     if (target->items[i].type != JSON_ITEM_UNINITIALIZED) {
       free(target->items[i].key);
       free(target->items[i].data);
@@ -109,7 +111,7 @@ static void json_object_destroy(struct json_object *target) {
 static const char *parse_object(struct json_object *obj, const char *json_str) {
   const char *next = json_str;
   if (*next != '{') {
-    expect('{', *next);
+    expect("{", *next);
     return NULL;
   }
   next++;
@@ -120,7 +122,7 @@ static const char *parse_object(struct json_object *obj, const char *json_str) {
   }
 
   if (*next != '}') {
-    expect('}', *next);
+    expect("}", *next);
     return NULL;
   }
   next++;
@@ -131,7 +133,7 @@ static const char *parse_object(struct json_object *obj, const char *json_str) {
 static const char *parse_item(struct json_object *obj, const char *json_str) {
   const char *next = json_str;
   if (*next != '"') {
-    expect('\"', *next);
+    expect("\"", *next);
     return NULL;
   }
   next++;
@@ -149,28 +151,38 @@ static const char *parse_item(struct json_object *obj, const char *json_str) {
   next++;
 
   if (*next != ':') {
-    expect(':', *next);
+    expect(":", *next);
     return NULL;
   }
   next++;
 
-  if (*next != '1') {
-    UNIMPLEMENTED();
+  if (!isdigit(*next)) {
+    expect("DIGIT", *next);
     return NULL;
   }
-  next++;
+  int *data = malloc(sizeof(int));
+  next = parse_integer(next, data);
 
   char *key = strndup(key_start, key_len);
-  if (!strndup(key_start, key_len)) {
+  if (!key) {
     eputs("Failed to allocate key");
     return NULL;
   }
-  int *data = malloc(sizeof(1));
-  *data = 1;
   if (json_object_insert_item(obj, key, data, JSON_TYPE_INTEGER)) {
     return NULL;
   }
 
+  return next;
+}
+
+static const char *parse_integer(const char *json_str, int *res) {
+  const char *next = json_str;
+  *res = 0;
+  while (isdigit(*next)) {
+    *res *= 10;
+    *res += *next - '0';
+    next++;
+  }
   return next;
 }
 
