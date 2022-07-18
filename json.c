@@ -96,7 +96,6 @@ const json_item *json_get_item(const json *target, const char *key) {
       rehashed = (rehashed + 1) % target->root_obj->size;
       continue;
     }
-    // TODO memo key hash
     if (hash != json_object_entry_name_hash(target->root_obj, candidate->key)) {
       return NULL;
     }
@@ -239,19 +238,6 @@ static int json_object_insert_item(struct json_object *obj, char *key,
       return JSON_RESULT_ERR;
     }
   }
-  // if (obj->items[rehashed].type != JSON_ITEM_UNINITIALIZED) {
-  //   rehashed = (rehashed + 1) % obj->size;
-  //   while (obj->items[rehashed].type != JSON_ITEM_UNINITIALIZED &&
-  //          rehashed != hash) {
-  //     rehashed = (rehashed + 1) % obj->size;
-  //   }
-  //   if (rehashed == hash) {
-  //     if (json_object_grow(obj) == JSON_RESULT_ERR) {
-  //       eputs("Failed to insert item");
-  //       return JSON_RESULT_ERR;
-  //     }
-  //   }
-  // }
 
   obj->items[rehashed].key = key;
   obj->items[rehashed].type = JSON_TYPE_INTEGER;
