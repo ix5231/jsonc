@@ -12,7 +12,7 @@
   fprintf(stderr, "[L%d] Expected %s but found %c (%d)\n", __LINE__, expected, \
           found, found)
 
-#define JSON_OBJECT_INITIAL_LEN 2
+#define JSON_OBJECT_INITIAL_LEN 23
 #define JSON_RESULT_OK 1
 #define JSON_RESULT_ERR 0
 
