@@ -14,12 +14,12 @@
 
 #define JSON_OBJECT_INITIAL_LEN 2
 #define JSON_RESULT_OK 1
-#define JSON_RESULT_ERR 1
+#define JSON_RESULT_ERR 0
 
 static json *json_make(void);
 static struct json_object *json_object_make(void);
 static void json_object_destroy(struct json_object *target);
-static int json_object_entry_name_hash(const char *target);
+static int json_object_entry_name_hash(const struct json_object *obj, const char *target);
 static const char *parse_object(struct json_object *obj, const char *json_str);
 static const char *parse_item(struct json_object *obj, const char *json_str);
 static const char *parse_integer(const char *json_str, int *res);
@@ -84,15 +84,26 @@ static struct json_object *json_object_make(void) {
 }
 
 const json_item *json_get_item(const json *target, const char *key) {
-  const int hash = json_object_entry_name_hash(key);
-  if (target->root_obj->items[hash].type == JSON_ITEM_UNINITIALIZED) {
-    return NULL;
-  }
-  json_item *candidate = &target->root_obj->items[hash];
-  if (strcmp(key, candidate->key) != 0) {
-    return NULL;
-  }
-  return candidate;
+  const int hash = json_object_entry_name_hash(target->root_obj, key);
+  int rehashed = hash;
+  do {
+    json_item *candidate = &target->root_obj->items[rehashed];
+    if (candidate->type == JSON_ITEM_UNINITIALIZED) {
+      rehashed = (rehashed + 1) % target->root_obj->size;
+      continue;
+    }
+    if (strcmp(key, candidate->key) != 0) {
+      rehashed = (rehashed + 1) % target->root_obj->size;
+      continue;
+    }
+    // TODO memo key hash
+    if (hash != json_object_entry_name_hash(target->root_obj, candidate->key)) {
+      return NULL;
+    }
+    return candidate;
+  } while (rehashed != hash);
+
+  return NULL;
 }
 
 void json_destroy(json *target) {
@@ -120,21 +131,21 @@ static const char *parse_object(struct json_object *obj, const char *json_str) {
   while (1) {
     next = feed_ws(next);
     switch (*next) {
-      case ',':
-        next++;
-        // dont break;
-      case '"':
-        next = parse_item(obj, next);
-        if (!next) {
-          return NULL;
-        }
-        break;
-      case '}':
-        next = feed_ws(next);
-        return next;
-      default:
-        expect("} or ,", *next);
+    case ',':
+      next++;
+      // dont break;
+    case '"':
+      next = parse_item(obj, next);
+      if (!next) {
         return NULL;
+      }
+      break;
+    case '}':
+      next = feed_ws(next);
+      return next;
+    default:
+      expect("} or ,", *next);
+      return NULL;
     }
   }
 }
@@ -170,7 +181,8 @@ static const char *parse_item(struct json_object *obj, const char *json_str) {
     eputs("Failed to allocate key");
     return NULL;
   }
-  if (json_object_insert_item(obj, key, data, JSON_TYPE_INTEGER)) {
+  if (json_object_insert_item(obj, key, data, JSON_TYPE_INTEGER) ==
+      JSON_RESULT_ERR) {
     return NULL;
   }
 
@@ -214,38 +226,75 @@ static const char *feed_ws(const char *json_str) {
 
 static int json_object_insert_item(struct json_object *obj, char *key,
                                    void *data, enum json_item_type type) {
-  const int hash = json_object_entry_name_hash(key);
+  const int hash = json_object_entry_name_hash(obj, key);
   int rehashed = hash;
-  if (obj->items[rehashed].type != JSON_ITEM_UNINITIALIZED) {
+  while (obj->items[rehashed].type != JSON_ITEM_UNINITIALIZED) {
     rehashed = (rehashed + 1) % obj->size;
-    while (obj->items[rehashed].type != JSON_ITEM_UNINITIALIZED &&
-           rehashed != hash)
-      ;
     if (rehashed == hash) {
-      if (json_object_grow(obj) == JSON_RESULT_ERR) {
-        eputs("Failed to insert item");
-        return 1;
+      if (json_object_grow(obj) == JSON_RESULT_OK) {
+        rehashed = hash;
+        continue;
       }
+      eputs("Failed to insert item");
+      return JSON_RESULT_ERR;
     }
   }
+  // if (obj->items[rehashed].type != JSON_ITEM_UNINITIALIZED) {
+  //   rehashed = (rehashed + 1) % obj->size;
+  //   while (obj->items[rehashed].type != JSON_ITEM_UNINITIALIZED &&
+  //          rehashed != hash) {
+  //     rehashed = (rehashed + 1) % obj->size;
+  //   }
+  //   if (rehashed == hash) {
+  //     if (json_object_grow(obj) == JSON_RESULT_ERR) {
+  //       eputs("Failed to insert item");
+  //       return JSON_RESULT_ERR;
+  //     }
+  //   }
+  // }
 
   obj->items[rehashed].key = key;
   obj->items[rehashed].type = JSON_TYPE_INTEGER;
   obj->items[rehashed].data = data;
 
-  return 0;
+  return JSON_RESULT_OK;
 }
 
 static int json_object_grow(struct json_object *obj) {
-  UNIMPLEMENTED();
-  return JSON_RESULT_ERR;
+  const int old_size = obj->size;
+  obj->size *= 2;
+  obj->items = realloc(obj->items, sizeof(*obj->items) * obj->size);
+  if (!obj->items) {
+    return JSON_RESULT_ERR;
+  }
+
+  for (int i = 0; i < old_size; i++) {
+    if (obj->items[i].type != JSON_ITEM_UNINITIALIZED) {
+      const int new_hash = json_object_entry_name_hash(obj, obj->items[i].key);
+      if (new_hash >= obj->size) {
+        obj->items[new_hash].key = obj->items[i].key;
+        obj->items[new_hash].type = obj->items[i].type;
+        obj->items[new_hash].data = obj->items[i].data;
+        obj->items[i].key = NULL;
+        obj->items[i].type = JSON_ITEM_UNINITIALIZED;
+        obj->items[i].data = NULL;
+      }
+    }
+  }
+  for (int i = old_size; i < obj->size; i++) {
+    obj->items[i].key = NULL;
+    obj->items[i].type = JSON_ITEM_UNINITIALIZED;
+    obj->items[i].data = NULL;
+  }
+
+  return JSON_RESULT_OK;
 }
 
-static int json_object_entry_name_hash(const char *target) {
+static int json_object_entry_name_hash(const struct json_object *obj, const char *target) {
   const size_t len = strlen(target);
   int ret = 0;
   for (int i = 0; i < len; i++) {
-    ret = (ret + target[i]) % JSON_OBJECT_INITIAL_LEN;
+    ret = (ret + target[i]) % obj->size;
   }
   return ret;
 }
